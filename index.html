@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#10171b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="乐谱照片与实时演奏音高核对；逐音检查、不设 BPM。">
+  <title>听音校准 · 无节拍音高校对</title>
+  <style>
+    :root { color-scheme:dark; --bg:#10171b; --surface:#192329; --surface2:#212d33; --line:#314149; --text:#eaf4f2; --muted:#9bacb0; --mint:#70e3b2; --red:#ff5873; --yellow:#ffc36a; --radius:16px; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif; font-size:14px; }
+    button,select,input { font:inherit; }
+    button { cursor:pointer; border:1px solid var(--line); border-radius:11px; background:var(--surface2); color:var(--text); padding:10px 13px; transition:background .15s; }
+    button:active { transform:translateY(1px); }
+    button:disabled { cursor:not-allowed; opacity:.42; }
+    button.primary { background:var(--mint); color:#10251e; border-color:var(--mint); font-weight:750; }
+    button.danger { color:var(--red); }
+    button.active { outline:2px solid var(--mint); outline-offset:0; }
+    button.small { padding:7px 10px; font-size:12px; }
+    select { background:var(--surface2); border:1px solid var(--line); border-radius:9px; color:var(--text); padding:9px 8px; min-height:38px; }
+    h1,h2,h3,p { margin:0; }
+    .shell { max-width:1200px; margin:0 auto; padding:20px max(14px,env(safe-area-inset-right)) 75px max(14px,env(safe-area-inset-left)); }
+    header { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:20px; }
+    .logo { display:flex; align-items:center; gap:10px; }
+    .logo-mark { border-radius:12px; width:43px; height:43px; background:#234237; color:var(--mint); display:grid; place-items:center; font-size:26px; font-weight:800; }
+    h1 { font-size:23px; letter-spacing:.04em; }
+    .subtitle { color:var(--muted); margin-top:3px; font-size:12px; }
+    .badge { border:1px solid #436051; color:var(--mint); border-radius:50px; padding:6px 10px; font-size:11px; white-space:nowrap; }
+    .workspace { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(300px,1fr); gap:17px; align-items:start; }
+    .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:16px; }
+    .card-head { display:flex; flex-wrap:wrap; justify-content:space-between; gap:9px; align-items:center; margin-bottom:13px; }
+    h2 { font-size:16px; font-weight:700; }
+    h3 { font-size:13px; font-weight:700; }
+    .help { color:var(--muted); font-size:12px; line-height:1.65; }
+    .upload { border:1.5px dashed #50656d; background:#19262b; border-radius:13px; min-height:113px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; padding:14px; cursor:pointer; }
+    .upload strong { font-size:15px; }
+    .upload .icon { font-size:27px; color:var(--mint); }
+    .upload:hover { border-color:var(--mint); }
+    .toolbar { display:flex; gap:7px; flex-wrap:wrap; margin:12px 0 10px; align-items:center; }
+    .pages { display:flex; flex-wrap:wrap; gap:7px; margin:12px 0 0; }
+    .page-tab.current { background:#29473d; border-color:var(--mint); }
+    .photo-scroller { position:relative; max-height:62vh; overflow:auto; border-radius:11px; background:#e6e8e7; border:1px solid #40545b; overscroll-behavior:contain; }
+    .score-layer { position:relative; width:100%; touch-action:pan-y; }
+    #scoreImg { width:100%; height:auto; display:block; user-select:none; -webkit-user-drag:none; }
+    #scoreOverlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:auto; touch-action:pan-y; }
+    #scorePlaceholder { text-align:center; padding:56px 15px; background:#1f2d32; color:var(--muted); border-radius:10px; }
+    .subtoolbar { display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-top:11px; }
+    .edit-panel { border-top:1px solid var(--line); margin-top:15px; padding-top:12px; }
+    .editing { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:9px 0 4px; }
+    .editing .pitch { font-size:19px; font-weight:800; color:var(--mint); min-width:65px; text-align:center; }
+    .staff-row { display:flex; align-items:center; justify-content:space-between; gap:8px; border-top:1px solid var(--line); padding:8px 0; }
+    .staff-row:last-child { padding-bottom:0; }
+    .staff-title { color:var(--muted); font-size:12px; }
+    .live { border:1px solid #3c5e50; padding:18px; }
+    .live-top { display:flex; justify-content:space-between; align-items:center; gap:7px; }
+    .live-pill { background:#30443c; color:var(--mint); border-radius:50px; padding:6px 11px; font-size:12px; font-weight:650; }
+    .live-pill.bad { background:#552935; color:#ff98aa; }
+    .live-pill.neutral { background:#2e3b41; color:#b7c8cc; }
+    .live-center { display:grid; grid-template-columns:1fr 30px 1fr; align-items:center; gap:4px; text-align:center; margin:20px 0 13px; }
+    .live-center .big-pitch { font-size:clamp(29px,4vw,48px); font-weight:800; line-height:1.25; font-variant-numeric:tabular-nums; }
+    .live-center .arrow { color:#65817b; font-size:21px; }
+    .live-center .lbl { color:var(--muted); font-size:11px; margin-bottom:8px; }
+    #heardPitch { color:#d0ddd9; }
+    .message { min-height:49px; border-radius:10px; background:#263b34; color:#9de5c3; display:flex; flex-direction:column; justify-content:center; padding:9px 12px; gap:2px; text-align:center; font-weight:650; }
+    .message.bad { background:#512631; color:#ff8fa4; }
+    .message.muted { background:#2b363d; color:#b9c9ca; }
+    .meter { height:7px; background:#32414a; border-radius:10px; overflow:hidden; margin-top:13px; }
+    .meter-fill { width:0; background:var(--mint); height:100%; transition:width .15s; }
+    .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin:14px 0; }
+    .stat { background:#202d33; border-radius:11px; padding:12px 5px; text-align:center; }
+    .stat .value { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; }
+    .stat .label { color:var(--muted); font-size:11px; margin-top:3px; }
+    .settings-row { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 0; }
+    .settings-row label { color:#cad8d5; font-size:12px; }
+    .button-row { display:flex; gap:8px; }
+    .button-row button { flex:1; }
+    .warn { color:#ffb68e; }
+    .note { border-left:3px solid #4d6a5e; padding-left:10px; margin-top:12px; color:var(--muted); font-size:12px; line-height:1.65; }
+    .log { max-height:175px; overflow:auto; }
+    .log-item { display:flex; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); color:var(--muted); font-size:12px; }
+    .log-item strong { color:var(--red); }
+    .hide { display:none !important; }
+    #toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#31443f; border:1px solid #4f7665; border-radius:11px; color:#e6faf1; padding:11px 16px; min-width:230px; max-width:min(85vw,450px); text-align:center; box-shadow:0 8px 35px #0005; z-index:20; pointer-events:none; opacity:0; transition:opacity .2s; }
+    #toast.visible { opacity:1; }
+    @media(max-width:790px) { .workspace { grid-template-columns:1fr; } .shell {padding-top:14px;} .live { position:static; } .photo-scroller {max-height:56vh;} }
+    @media(max-width:400px) {h1{font-size:20px}.card{padding:13px}.live-center .big-pitch{font-size:31px}.toolbar button{font-size:12px;padding:8px 9px;} }
+  </style>
+</head>
+<body>
+<main class="shell">
+  <header>
+    <div class="logo"><div class="logo-mark">♫</div><div><h1>听音校准</h1><div class="subtitle">看谱 · 听音 · 即时标错</div></div></div>
+    <div class="badge">自由速度 · 无 BPM</div>
+  </header>
+  <div class="workspace">
+    <div>
+      <section class="card">
+        <div class="card-head"><h2>① 导入乐谱照片</h2><span class="help">支持多页 JPG / PNG</span></div>
+        <label class="upload" id="dropZone" for="photoInput"><span class="icon">▧</span><strong>点击选照片 / 拍照上传</strong><span class="help">照片只在设备中处理，不上传服务器</span></label>
+        <input id="photoInput" type="file" accept="image/*" multiple hidden>
+        <div class="pages" id="pageTabs"></div>
+        <div class="toolbar"><button class="small" id="saveProjectBtn" disabled>↓ 保存乐谱工程</button><button class="small" id="loadProjectBtn">↑ 打开保存的工程</button><input id="projectInput" type="file" accept=".json,application/json" hidden></div>
+        <div class="toolbar">
+          <button id="autoBtn" disabled>◎ 自动找音符（试验）</button>
+          <button id="addBtn" disabled>＋ 点选添加音符</button>
+          <button id="staffBtn" disabled>⌗ 手动标定五线谱</button>
+        </div>
+        <p class="help" id="modeHint">导入后自动查找五线谱。自动识谱可能漏音或误识别，请核对彩色圆圈；点击圆圈可修改。</p>
+        <div style="margin-top:10px" id="scorePlaceholder">先上传一张乐谱照片</div>
+        <div class="photo-scroller hide" id="photoScroller"><div class="score-layer" id="scoreLayer"><img id="scoreImg" alt="导入的乐谱照片"><canvas id="scoreOverlay"></canvas></div></div>
+        <div class="subtoolbar">
+          <span class="help" id="scoreCount">尚未导入乐谱</span>
+          <button class="small danger" id="removePageBtn" disabled>删除本页</button>
+        </div>
+        <div class="edit-panel hide" id="noteEditor">
+          <h3>选中音符 · 校对识谱</h3>
+          <div class="editing">
+            <button class="small" id="stepDownBtn" title="谱上向下一格">谱位 ↓</button>
+            <button class="small" id="semitoneDownBtn" title="音高降半音">− 半音</button>
+            <span class="pitch" id="editPitch">C3</span>
+            <button class="small" id="semitoneUpBtn" title="音高升半音">＋ 半音</button>
+            <button class="small" id="stepUpBtn" title="谱上向上一格">谱位 ↑</button>
+            <button class="small danger" id="deleteNoteBtn">删音符</button>
+          </div>
+          <p class="help">上下调整谱位；半音调整可用于临时升降号。请对照照片检查调号、变音记号和高把位音。</p>
+        </div>
+        <div class="edit-panel hide" id="staffEditor"><h3>识别到的五线谱</h3><div id="staffRows"></div></div>
+      </section>
+    </div>
+    <div>
+      <section class="card live">
+        <div class="live-top"><h2>② 实时听音</h2><span class="live-pill neutral" id="statusPill">未启动</span></div>
+        <div class="live-center">
+          <div><div class="lbl">乐谱预期</div><div class="big-pitch" id="expectedPitch">—</div></div>
+          <div class="arrow">→</div>
+          <div><div class="lbl">实际听到</div><div class="big-pitch" id="heardPitch">—</div></div>
+        </div>
+        <div class="message muted" id="liveMessage">请先上传乐谱并核对音符</div>
+        <div class="meter"><div class="meter-fill" id="meterFill"></div></div>
+        <div class="stats">
+          <div class="stat"><div class="value" id="totalCount">0</div><div class="label">谱上音符</div></div>
+          <div class="stat"><div class="value" id="passCount">0</div><div class="label">已通过</div></div>
+          <div class="stat"><div class="value" id="wrongCount" style="color:var(--red)">0</div><div class="label">错音次数</div></div>
+        </div>
+        <div class="button-row"><button id="micBtn" class="primary">🎙 开始听音</button><button id="nextBtn">跳过此音 →</button></div>
+        <div class="settings-row"><label for="tolerance">判定容差</label><select id="tolerance"><option value="35">严格 ±35 音分</option><option value="50" selected>常规 ±50 音分</option><option value="65">宽松 ±65 音分</option></select></div>
+        <div class="settings-row"><label for="keySig">调号</label><select id="keySig"><option value="0">C 大调 / a 小调（无）</option><option value="1">G / e（1♯）</option><option value="2">D / b（2♯）</option><option value="3">A / f♯（3♯）</option><option value="4">E / c♯（4♯）</option><option value="5">B / g♯（5♯）</option><option value="-1">F / d（1♭）</option><option value="-2">B♭ / g（2♭）</option><option value="-3">E♭ / c（3♭）</option><option value="-4">A♭ / f（4♭）</option><option value="-5">D♭ / b♭（5♭）</option></select></div>
+        <div class="button-row"><button class="small" id="prevBtn">← 上一音</button><button class="small" id="resetBtn">↻ 从头重测</button></div>
+        <p class="note">本程序只判断<strong>音高</strong>，不检查速度、时值或节奏。连续同音、双音、和弦、滑音和明显颤音可能需要手动确认；红色警告不表示一定演奏错误，请先核对识谱。</p>
+      </section>
+      <section class="card"><div class="card-head"><h2>错音记录</h2><button class="small" id="clearLogBtn">清除记录</button></div><div class="log" id="logList"><p class="help">识别到错音后会显示在这里。</p></div></section>
+      <section class="card"><h2>使用方法</h2><p class="help" style="margin-top:8px">先上传谱子，核对系统标出的音符；如有缺失，选择「点选添加音符」，直接点照片中的音符头。然后点「开始听音」，允许麦克风访问，即可按自己的速度演奏。<strong>拉错会变红，拉对才前进</strong>。推荐每次检测单声部旋律。</p></section>
+    </div>
+  </div>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const clefs = {bass:'低音谱号', tenor:'次中音谱号', treble:'高音谱号', alto:'中音谱号'};
+const clefBases = {bass: {letter:4,oct:2}, tenor:{letter:1,oct:3}, treble:{letter:2,oct:4}, alto:{letter:3,oct:3}}; // G2, D3, E4, F3
+const letters=['C','D','E','F','G','A','B'];
+const semitones=[0,2,4,5,7,9,11];
+const sharpOrder=[3,0,4,1,5,2,6], flatOrder=[6,2,5,1,4,0,3];
+let pages=[], activePage=-1, selected=null, mode='select', manualTop=null;
+let cursor=0, nextNoteId=1, audioContext=null, micStream=null, analyser=null, listening=false;
+let stability=[], lastStableMidi=null, silenceFrames=0, handlingCursor=-1, needsFreshAttack=false;
+let faultEvents=[];let toastTimer;
+const oCtx=$('scoreOverlay').getContext('2d');
+function toast(msg){ const e=$('toast');e.textContent=msg;e.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>e.classList.remove('visible'),3100); }
+function notesInOrder(){return pages.flatMap(p=>p.notes.slice().sort((a,b)=>a.staffId-b.staffId||a.x-b.x));}
+function currentNote(){return notesInOrder()[cursor]||null;}
+function pageOfNote(n){return n && pages.find(p=>p.notes.includes(n));}
+function getAccidental(letter){let k=Number($('keySig').value);return k>0&&sharpOrder.slice(0,k).includes(letter)?1:k<0&&flatOrder.slice(0,-k).includes(letter)?-1:0;}
+function notation(n){const p=pageOfNote(n),staff=p&&p.staves[n.staffId]; if(!staff) return {letter:0,oct:4,midi:60};const base=clefBases[staff.clef];let diatonic=base.oct*7+base.letter+n.step;let letter=((diatonic%7)+7)%7;let oct=Math.floor(diatonic/7);let acc=n.accOverride===null?getAccidental(letter):n.accOverride;return {letter,oct,acc,midi:12*(oct+1)+semitones[letter]+acc};}
+function pitchName(midi){if(!Number.isFinite(midi))return '—';const sharps=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];const flats=['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];let rounded=Math.round(midi);return (Number($('keySig').value)<0?flats:sharps)[((rounded%12)+12)%12]+(Math.floor(rounded/12)-1);}
+function nName(n){return pitchName(notation(n).midi);}
+function makeNote(page,staffId,x,step,source='manual'){let s=page.staves[staffId];return {id:nextNoteId++,staffId,x,y:s.top+(4-step/2)*s.gap,step,accOverride:null,source,passed:false,wrong:0};}
+function setMessage(text,type='muted'){const e=$('liveMessage');e.className='message '+type;e.textContent=text;const pill=$('statusPill');pill.textContent=type==='bad'?'错音警告':type==='good'?'音高正确':listening?'正在听音':'未启动';pill.className='live-pill '+(type==='bad'?'bad':type==='good'?'':'neutral');}
+function updateSummary(){const all=notesInOrder();$('totalCount').textContent=all.length;$('passCount').textContent=all.filter(n=>n.passed).length;$('wrongCount').textContent=faultEvents.length;$('expectedPitch').textContent=currentNote()?nName(currentNote()):'—';$('scoreCount').textContent=activePage<0?'尚未导入乐谱':`本页 ${pages[activePage].staves.length} 组五线谱 · ${pages[activePage].notes.length} 个音符 / 全曲 ${all.length} 个`;
+ if(all.length && cursor>=all.length) setMessage('✓ 本轮音符已全部检查','good');
+ renderOverlay();renderLog();}
+function renderLog(){const box=$('logList');if(!faultEvents.length){box.innerHTML='<p class="help">识别到错音后会显示在这里。</p>';return;}box.innerHTML=faultEvents.slice(-24).reverse().map(e=>`<div class="log-item"><span>第 ${e.index+1} 音 · 应为 ${escapeHTML(e.expected)}</span><strong>听到 ${escapeHTML(e.heard)}</strong></div>`).join('');}
+function escapeHTML(s){return String(s).replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function refreshPageTabs(){let container=$('pageTabs');container.innerHTML='';pages.forEach((p,i)=>{let b=document.createElement('button');b.className='small page-tab'+(i===activePage?' current':'');b.textContent=`第 ${i+1} 页 · ${p.notes.length} 音`;b.onclick=()=>showPage(i);container.appendChild(b);});}
+function showPage(index){if(index<0||index>=pages.length)return;activePage=index;$('saveProjectBtn').disabled=false;const p=pages[index];$('scoreImg').src=p.src;$('scoreImg').onload=()=>{resizeOverlay();};$('scorePlaceholder').classList.add('hide');$('photoScroller').classList.remove('hide');$('removePageBtn').disabled=false;$('autoBtn').disabled=false;$('addBtn').disabled=false;$('staffBtn').disabled=false;selected=null;renderStaffControls();renderNoteEditor();refreshPageTabs();updateSummary();}
+function resizeOverlay(){const p=pages[activePage];if(!p)return;const canvas=$('scoreOverlay');canvas.width=p.w;canvas.height=p.h;renderOverlay();}
+window.addEventListener('resize',()=>{renderOverlay();});
+function scrollToTarget(n){if(!n)return;const p=pageOfNote(n),i=pages.indexOf(p);if(i!==activePage)showPage(i);requestAnimationFrame(()=>{const box=$('photoScroller');const scale=box.clientWidth/p.w;box.scrollTop=Math.max(0,n.y*scale-box.clientHeight*.43);});}
+function renderOverlay(){const p=pages[activePage];if(!p)return;const c=$('scoreOverlay');if(c.width!==p.w||c.height!==p.h)return;oCtx.clearRect(0,0,p.w,p.h);const all=notesInOrder(),target=currentNote();for(const [si,s] of p.staves.entries()){
+ if(mode==='staff' || mode==='add'){oCtx.strokeStyle='rgba(36,174,127,.24)';oCtx.lineWidth=Math.max(1,s.gap*.07);for(let k=0;k<5;k++){oCtx.beginPath();oCtx.moveTo(0,s.top+k*s.gap);oCtx.lineTo(p.w,s.top+k*s.gap);oCtx.stroke();}}
+ for(const n of p.notes.filter(x=>x.staffId===si)){let r=Math.max(7,s.gap*.57);let isTarget=n===target,isSelected=n===selected;let color=n.wrong>0?'#f04f68':n.passed?'#21b58d':'#f7bc57';oCtx.lineWidth=isTarget?Math.max(3,s.gap*.26):Math.max(2,s.gap*.15);oCtx.strokeStyle=color;oCtx.fillStyle=isTarget?'rgba(255,195,106,.24)':n.wrong?'rgba(255,67,93,.17)':n.passed?'rgba(24,196,143,.13)':'rgba(247,188,87,.10)';oCtx.beginPath();oCtx.arc(n.x,n.y,r,0,Math.PI*2);oCtx.fill();oCtx.stroke();
+ if(isTarget){oCtx.strokeStyle='#11bded';oCtx.lineWidth=Math.max(2,s.gap*.16);oCtx.beginPath();oCtx.arc(n.x,n.y,r*1.55,0,Math.PI*2);oCtx.stroke();}
+ if(isSelected){oCtx.strokeStyle='#fff';oCtx.lineWidth=2;oCtx.beginPath();oCtx.arc(n.x,n.y,r*1.8,0,Math.PI*2);oCtx.stroke();}
+ if(isSelected || isTarget){oCtx.fillStyle='#172c26';oCtx.font=`bold ${Math.max(12,s.gap*.8)}px sans-serif`;let label=nName(n);let tw=oCtx.measureText(label).width;oCtx.fillRect(n.x+8,n.y-25,tw+10,22);oCtx.fillStyle='#ddffed';oCtx.fillText(label,n.x+13,n.y-9);}
+ }
+ }
+ if(mode==='staff'&&manualTop!==null){oCtx.beginPath();oCtx.moveTo(0,manualTop);oCtx.lineTo(p.w,manualTop);oCtx.strokeStyle='#21bbf0';oCtx.lineWidth=3;oCtx.stroke();}
+}
+function nearestStaff(p,y){let best=-1,dist=Infinity;p.staves.forEach((s,i)=>{let d=y<s.top?s.top-y:y>s.top+4*s.gap?y-(s.top+4*s.gap):0;if(d<dist){best=i;dist=d;}});return {id:best,dist};}
+function stepFromY(s,y){return Math.round((s.top+4*s.gap-y)/(s.gap/2));}
+function setMode(next){mode=mode===next?'select':next;manualTop=null;$('addBtn').classList.toggle('active',mode==='add');$('staffBtn').classList.toggle('active',mode==='staff');$('modeHint').textContent=mode==='add'?'添加模式：点击照片中每个音符头的中心，圆圈会自动按五线谱位置计算音名。':mode==='staff'?'谱表标定：先点击最上面第一条线，再点击最下面第五条线，每组谱表重复此操作。':'点击圆圈选中并修改。红圈=曾错音；绿圈=通过；青色外环=正在检查。';renderOverlay();}
+$('addBtn').onclick=()=>setMode('add');$('staffBtn').onclick=()=>setMode('staff');
+$('scoreOverlay').addEventListener('click',(e)=>{const p=pages[activePage];if(!p)return;const rect=e.currentTarget.getBoundingClientRect();const x=(e.clientX-rect.left)/rect.width*p.w;const y=(e.clientY-rect.top)/rect.height*p.h;
+ if(mode==='staff'){if(manualTop===null){manualTop=y;toast('现在点击该五线谱最下方的第五线');}else{let top=Math.min(y,manualTop),bottom=Math.max(y,manualTop),gap=(bottom-top)/4;if(gap<4||gap>70){toast('两条线距离不合理，请重新标定');}else{p.staves.push({top,gap,clef:'bass'});p.staves.sort((a,b)=>a.top-b.top);p.notes=[];cursor=0;faultEvents=[];toast('谱表已标定，请重新添加音符');renderStaffControls();updateSummary();}manualTop=null;}
+ renderOverlay();return;}
+ let near=null,dist=Infinity;for(const n of p.notes){let s=p.staves[n.staffId];let d=Math.hypot((n.x-x),n.y-y);if(d<Math.max(13,s.gap*.95)&&d<dist){dist=d;near=n;}}
+ if(near){selected=near;renderNoteEditor();renderOverlay();return;}
+ if(mode==='add'){let ns=nearestStaff(p,y);if(ns.id<0){toast('请先识别或手动标定五线谱');return;}let staff=p.staves[ns.id];if(ns.dist>staff.gap*5){toast('请点击五线谱附近的音符');return;}let n=makeNote(p,ns.id,x,stepFromY(staff,y));p.notes.push(n);selected=n;refreshPageTabs();renderNoteEditor();updateSummary();}else{selected=null;renderNoteEditor();renderOverlay();}
+});
+function renderNoteEditor(){const ed=$('noteEditor');ed.classList.toggle('hide',!selected);if(selected)$('editPitch').textContent=nName(selected);}
+function changeStep(step){if(!selected)return;selected.step+=step;const p=pageOfNote(selected),s=p.staves[selected.staffId];selected.y=s.top+(4-selected.step/2)*s.gap;selected.accOverride=null;renderNoteEditor();updateSummary();}
+function changeSemitone(dir){if(!selected)return;const val=notation(selected),baseAcc=getAccidental(val.letter);selected.accOverride=(selected.accOverride===null?baseAcc:selected.accOverride)+dir;renderNoteEditor();updateSummary();}
+$('stepUpBtn').onclick=()=>changeStep(1);$('stepDownBtn').onclick=()=>changeStep(-1);$('semitoneUpBtn').onclick=()=>changeSemitone(1);$('semitoneDownBtn').onclick=()=>changeSemitone(-1);
+$('deleteNoteBtn').onclick=()=>{if(!selected)return;const p=pageOfNote(selected);p.notes=p.notes.filter(n=>n!==selected);selected=null;cursor=Math.min(cursor,Math.max(0,notesInOrder().length-1));renderNoteEditor();refreshPageTabs();updateSummary();};
+function renderStaffControls(){const p=pages[activePage];$('staffEditor').classList.toggle('hide',!p||!p.staves.length);$('staffRows').innerHTML='';if(!p)return;p.staves.forEach((s,i)=>{const row=document.createElement('div');row.className='staff-row';const lab=document.createElement('span');lab.className='staff-title';lab.textContent=`第 ${i+1} 组（由上到下）`;const sel=document.createElement('select');for(const [k,label] of Object.entries(clefs)){const opt=document.createElement('option');opt.value=k;opt.textContent=label;sel.appendChild(opt);}sel.value=s.clef;sel.onchange=()=>{s.clef=sel.value;renderNoteEditor();updateSummary();};row.append(lab,sel);$('staffRows').appendChild(row);});}
+$('keySig').onchange=()=>{renderNoteEditor();updateSummary();};
+$('prevBtn').onclick=()=>{cursor=Math.max(0,cursor-1);resetPitchEvents();scrollToTarget(currentNote());updateSummary();};
+$('nextBtn').onclick=()=>{cursor=Math.min(notesInOrder().length,cursor+1);resetPitchEvents();scrollToTarget(currentNote());updateSummary();};
+$('resetBtn').onclick=()=>{cursor=0;faultEvents=[];pages.forEach(p=>p.notes.forEach(n=>{n.wrong=0;n.passed=false;}));resetPitchEvents();scrollToTarget(currentNote());updateSummary();setMessage('已重置，按自己的速度演奏','muted');};
+$('clearLogBtn').onclick=()=>{faultEvents=[];pages.forEach(p=>p.notes.forEach(n=>n.wrong=0));updateSummary();};
+$('removePageBtn').onclick=()=>{if(activePage<0)return;pages.splice(activePage,1);cursor=0;faultEvents=[];selected=null;mode='select';if(pages.length){showPage(Math.min(activePage,pages.length-1));}else{activePage=-1;$('scorePlaceholder').classList.remove('hide');$('photoScroller').classList.add('hide');$('pageTabs').innerHTML='';$('staffEditor').classList.add('hide');$('noteEditor').classList.add('hide');['autoBtn','addBtn','staffBtn','removePageBtn','saveProjectBtn'].forEach(k=>$(k).disabled=true);updateSummary();}};
+$('autoBtn').onclick=()=>{const p=pages[activePage];if(!p)return;if(!p.staves.length){toast('未找到五线谱，请点击「手动标定五线谱」');return;}let candidates=findNoteheads(p);p.notes=candidates;selected=null;cursor=0;faultEvents=[];renderNoteEditor();refreshPageTabs();updateSummary();toast(`自动找到 ${candidates.length} 个疑似音符，请逐一核对并补漏`);};
+function getRaster(img,w,h){const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);return c;}
+async function imageFromFile(f){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=reader.result;};reader.onerror=reject;reader.readAsDataURL(f);});}
+async function addPhotos(files){const arr=Array.from(files).filter(f=>f.type.startsWith('image/'));if(!arr.length){toast('请选择 JPG / PNG 乐谱图片');return;}$('modeHint').textContent='正在识别五线谱。自动识别只适用于清晰的单声部乐谱，请核对每个圆圈。';for(const f of arr){try{const im=await imageFromFile(f);const scale=Math.min(1,1400/im.naturalWidth,2400/im.naturalHeight);const w=Math.max(1,Math.round(im.naturalWidth*scale)),h=Math.max(1,Math.round(im.naturalHeight*scale));const c=getRaster(im,w,h);let p={filename:f.name,w,h,src:c.toDataURL('image/jpeg',.91),staves:[],notes:[],imageCanvas:c};p.staves=findStaves(p);p.notes=findNoteheads(p);pages.push(p);}catch(e){toast('读取图片失败：'+(e.message||String(e)));}} if(pages.length){showPage(pages.length-arr.length>=0?Math.max(0,pages.length-arr.length):0);toast(`已导入 ${arr.length} 页，请核对自动识别的音符`);setMessage('乐谱已就绪，核对音符后点击开始听音','muted');}setMode('select');refreshPageTabs();updateSummary();}
+$('photoInput').addEventListener('change',(e)=>{addPhotos(e.target.files);e.target.value='';});
+$('saveProjectBtn').onclick=()=>{if(!pages.length)return;const project={format:'tingyin-v1',pages:pages.map(p=>({filename:p.filename,w:p.w,h:p.h,src:p.src,staves:p.staves,notes:p.notes})),keySig:Number($('keySig').value)};const blob=new Blob([JSON.stringify(project)],{type:'application/json'});const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download='听音校准-乐谱工程.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);toast('已保存乐谱工程，之后可以重新打开');};
+$('loadProjectBtn').onclick=()=>$('projectInput').click();
+$('projectInput').addEventListener('change',async e=>{const f=e.target.files&&e.target.files[0];e.target.value='';if(!f)return;try{const data=JSON.parse(await f.text());if(data.format!=='tingyin-v1'||!Array.isArray(data.pages)||data.pages.length>50||data.pages.some(p=>!p.src||!p.src.startsWith('data:image/')||!Array.isArray(p.notes)||!Array.isArray(p.staves)||p.w<1||p.h<1||p.w>5000||p.h>5000))throw new Error('工程格式不正确');const loaded=[];for(const p of data.pages){const im=new Image();await new Promise((resolve,reject)=>{im.onload=resolve;im.onerror=reject;im.src=p.src;});const c=getRaster(im,p.w,p.h);loaded.push({filename:p.filename||'已保存乐谱',w:p.w,h:p.h,src:p.src,imageCanvas:c,staves:p.staves,notes:p.notes});}pages=loaded;nextNoteId=1;for(const p of pages)for(const n of p.notes){n.id=nextNoteId++;n.passed=false;n.wrong=0;}cursor=0;faultEvents=[];selected=null;resetPitchEvents();$('keySig').value=String(data.keySig||0);if(pages.length)showPage(0);else toast('工程没有页面');toast('已恢复乐谱工程，可以继续核对音符');setMessage('乐谱已恢复，点击开始听音','muted');}catch(err){toast('打开工程失败：'+(err.message||'文件损坏'));}});
+$('dropZone').addEventListener('dragover',(e)=>{e.preventDefault();});$('dropZone').addEventListener('drop',(e)=>{e.preventDefault();addPhotos(e.dataTransfer.files);});
+function makeBlackMask(page){const {w,h}=page,rgba=page.imageCanvas.getContext('2d',{willReadFrequently:true}).getImageData(0,0,w,h).data;let avg=0,count=0;for(let y=0;y<h;y+=8)for(let x=0;x<w;x+=8){let i=(y*w+x)*4;avg+=(rgba[i]*.299+rgba[i+1]*.587+rgba[i+2]*.114);count++;}avg/=Math.max(count,1);let threshold=Math.min(208,Math.max(100,avg*.82));const mask=new Uint8Array(w*h);for(let i=0;i<w*h;i++){let z=4*i;mask[i]=(rgba[z]*.299+rgba[z+1]*.587+rgba[z+2]*.114)<threshold?1:0;}return mask;}
+function findStaves(page){const {w,h}=page;const mask=makeBlackMask(page),x0=Math.floor(w*.1),x1=Math.ceil(w*.92),stride=2;let dark=[];for(let y=0;y<h;y++){let k=0;for(let x=x0;x<x1;x+=stride)k+=mask[y*w+x];dark.push(k/Math.ceil((x1-x0)/stride));}
+ const groups=[];function takeGroups(thr){let inStart=-1;let result=[];for(let y=0;y<=h;y++){if(y<h&&dark[y]>thr){if(inStart<0)inStart=y;}else if(inStart>=0){let hi=y-1;if(hi-inStart<12){let center=0,s=0;for(let z=inStart;z<=hi;z++){center+=z*dark[z];s+=dark[z];}result.push({y:center/s,strength:s});}inStart=-1;}}return result;}
+ let lines=takeGroups(.32);if(lines.length<5)lines=takeGroups(.22);
+ let found=[], used=new Set();for(let i=0;i+4<lines.length;i++){let five=lines.slice(i,i+5);let gap=(five[4].y-five[0].y)/4;if(gap<5||gap>70)continue;let error=0;for(let j=0;j<4;j++){error+=Math.abs((five[j+1].y-five[j].y)-gap);}if(error>Math.max(3.8,gap*.4))continue;if(five.some((l,j)=>used.has(i+j)))continue;found.push({top:five[0].y,gap,clef:'bass'});for(let j=0;j<5;j++)used.add(i+j);i+=4;}
+ return found.sort((a,b)=>a.top-b.top);
+}
+function findNoteheads(page){const {w,h,staves}=page,mask=makeBlackMask(page);let notes=[];for(let si=0;si<staves.length;si++){let s=staves[si],g=s.gap;let cands=[];const halfW=Math.max(3,Math.round(g*.53)),halfH=Math.max(2,Math.round(g*.37)),scanStep=Math.max(2,Math.round(g*.20));let x0=Math.min(w-5,Math.max(8,Math.round(g*5.6))),x1=w-Math.max(8,Math.round(g*2));
+ for(let step=-5;step<=16;step++){const y0=s.top+(4-step/2)*g,yy=Math.round(y0);if(yy-halfH<0||yy+halfH>=h)continue;const scores=[];for(let x=x0;x<x1;x+=scanStep){let black=0,area=0;for(let y=yy-halfH;y<=yy+halfH;y++){// Remove printed staff lines to prevent false noteheads.
+ let line= false;for(let k=0;k<5;k++){if(Math.abs(y-(s.top+k*g))<=Math.max(.8,g*.075)){line=true;break;}}
+ if(line)continue;const offset=y*w;for(let xx=x-halfW;xx<=x+halfW;xx+=1){if(xx>=0&&xx<w){black+=mask[offset+xx];area++;}}
+ }let score=black/Math.max(1,area);scores.push({x,y:yy,step,score});}
+ for(let j=1;j<scores.length-1;j++){const a=scores[j];if(a.score<.48||a.score<scores[j-1].score||a.score<scores[j+1].score)continue; // Local maxima, not a reliable full OMR model.
+ cands.push(a);
+ }
+ }
+ cands.sort((a,b)=>b.score-a.score);let selectedCandidates=[];for(const c of cands){if(selectedCandidates.some(k=>Math.abs(k.x-c.x)<g*.9 && Math.abs(k.y-c.y)<g*.62))continue;selectedCandidates.push(c);}for(const c of selectedCandidates)notes.push(makeNote(page,si,c.x,c.step,'auto'));
+ }
+ return notes.sort((a,b)=>a.staffId-b.staffId||a.x-b.x);
+}
+// YIN fundamental-frequency estimation, without tempo or onset timing constraints.
+function detectPitch(buffer,sampleRate){let rms=0;const N=3072;let start=Math.max(0,buffer.length-N);for(let i=start;i<buffer.length;i++)rms+=buffer[i]*buffer[i];rms=Math.sqrt(rms/(buffer.length-start));if(rms<.009)return {freq:null,rms};let minTau=Math.floor(sampleRate/1200),maxTau=Math.min(Math.floor(sampleRate/60),Math.floor(N*.46));let yin=new Float32Array(maxTau+1);for(let tau=1;tau<=maxTau;tau++){let sum=0;for(let j=0;j<N-maxTau;j++){let d=buffer[start+j]-buffer[start+j+tau];sum+=d*d;}yin[tau]=sum;}let running=0;yin[0]=1;for(let tau=1;tau<=maxTau;tau++){running+=yin[tau];yin[tau]=running>0?yin[tau]*tau/running:1;}let best=-1;for(let tau=minTau;tau<=maxTau-1;tau++){if(yin[tau]<.16){while(tau+1<=maxTau&&yin[tau+1]<yin[tau])tau++;best=tau;break;}}
+ if(best<0)return {freq:null,rms};const a=yin[best-1]||yin[best],b=yin[best],c=yin[best+1]||yin[best];let divisor=2*(2*b-a-c),correction=divisor?((c-a)/divisor):0;correction=Math.max(-1,Math.min(1,correction));let period=best+correction;return {freq:sampleRate/period,rms,confidence:1-b};}
+function resetPitchEvents(){stability=[];lastStableMidi=null;handlingCursor=-1;silenceFrames=0;needsFreshAttack=false;}
+function showHeard(midi,cents){$('heardPitch').textContent=pitchName(midi);$('heardPitch').style.color='#d1e0dc';$('heardPitch').title=`偏差 ${Math.round(cents)} 音分`;}
+function evaluate(midi,cents,attack){const expected=currentNote();if(!expected)return;const target=notation(expected).midi;const tol=Number($('tolerance').value);if(!attack && handlingCursor!==cursor)return;
+ const correct=Math.abs((midi-target)*100+cents)<=tol;
+ // Repeated pitches require a fresh onset after release, rather than counting one sustained note twice.
+ if(correct){if(!attack && handlingCursor!==cursor)return;expected.passed=true;cursor++;handlingCursor=-1;$('heardPitch').style.color='var(--mint)';setMessage('✓ 音高正确，继续下一音','good');scrollToTarget(currentNote());updateSummary();return;}
+ if(!attack)return;handlingCursor=cursor;expected.wrong++;const exp=pitchName(target),actual=pitchName(midi);const detune=Math.round((midi-target)*100+cents);faultEvents.push({index:cursor,expected:exp,heard:actual,cents:detune});$('heardPitch').style.color='var(--red)';const msg=midi===target?`音准偏差 ${detune>0?'+':''}${detune} 音分，超出容差`:`✕ 错音：应为 ${exp}，实际 ${actual}`;setMessage(msg,'bad');updateSummary();}
+let raf=null,lastTick=0;
+function monitor(t){if(!listening)return;raf=requestAnimationFrame(monitor);if(t-lastTick<85)return;lastTick=t;if(!analyser||!audioContext)return;const samples=new Float32Array(analyser.fftSize);analyser.getFloatTimeDomainData(samples);const pitch=detectPitch(samples,audioContext.sampleRate);$('meterFill').style.width=`${Math.min(100,Math.round(pitch.rms*340))}%`;
+ if(!pitch.freq){silenceFrames++;stability=[];if(silenceFrames>=2){lastStableMidi=null;$('heardPitch').textContent='—';$('heardPitch').style.color='#d0ddd9';if(currentNote()&&$('liveMessage').classList.contains('bad')===false)setMessage('等待演奏…','muted');}return;}
+ silenceFrames=0;const raw=69+12*Math.log2(pitch.freq/440);if(!Number.isFinite(raw)||raw<25||raw>105)return;const midi=Math.round(raw),cents=(raw-midi)*100;stability.push({midi,cents});if(stability.length>4)stability.shift();if(stability.length<3)return;const recent=stability.slice(-3);if(recent.some(a=>a.midi!==midi))return;const avgCents=recent.reduce((a,b)=>a+b.cents,0)/3;showHeard(midi,avgCents);const attack=lastStableMidi!==midi;lastStableMidi=midi;evaluate(midi,avgCents,attack);
+}
+async function toggleMic(){if(listening){stopMic();return;}if(!notesInOrder().length){toast('请先导入乐谱并确认至少一个音符');return;}if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('需要通过 HTTPS 或 localhost 打开，才能启用麦克风');setMessage('浏览器无法访问麦克风；请从安全网页地址打开','bad');return;}try{micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});const AC=window.AudioContext||window.webkitAudioContext;audioContext=new AC();await audioContext.resume();const source=audioContext.createMediaStreamSource(micStream);analyser=audioContext.createAnalyser();analyser.fftSize=8192;analyser.smoothingTimeConstant=0;source.connect(analyser);listening=true;lastTick=0;resetPitchEvents();$('micBtn').textContent='■ 停止听音';$('micBtn').classList.remove('primary');setMessage('等待演奏…','muted');raf=requestAnimationFrame(monitor);}catch(err){toast('无法启动麦克风：请检查浏览器权限');setMessage('麦克风无法启动：'+(err.message||'权限被拒绝'),'bad');stopMic();}}
+function stopMic(){listening=false;if(raf)cancelAnimationFrame(raf);raf=null;if(micStream)micStream.getTracks().forEach(t=>t.stop());micStream=null;if(audioContext){audioContext.close().catch(()=>{});audioContext=null;}analyser=null;$('micBtn').textContent='🎙 开始听音';$('micBtn').classList.add('primary');$('meterFill').style.width='0';$('heardPitch').textContent='—';setMessage('已暂停听音','muted');}
+$('micBtn').onclick=toggleMic;
+
+updateSummary();
+</script>
+</body>
+</html>
+
